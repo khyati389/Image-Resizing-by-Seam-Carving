@@ -8,89 +8,178 @@
 
 #include "sc.h"
 
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <math.h>
+
 using namespace cv;
 using namespace std;
 
 
 //1st. Energy map
 void energyImageGeneration(Mat& inputImage, Mat& BW_image){
-    Mat gray_image;
+    	Mat gray_image;
+	Mat grad_x, grad_y;
+	Mat abs_grad_x, abs_grad_y;
+	int scale = 1;
+	int delta = 0;
+	int ddepth = CV_16S;
 
     //laplacian function
 	GaussianBlur(inputImage, gray_image, Size(3, 3), 0, 0, BORDER_DEFAULT);
-	cvtColor(inputImage, gray_image, CV_RGB2GRAY);
+	cvtColor(gray_image, gray_image, CV_RGB2GRAY);
 	Laplacian(gray_image, BW_image, CV_16S, 3, 1, 0, BORDER_DEFAULT);
 	convertScaleAbs(BW_image, BW_image);
     // end of laplacian
+    /*GaussianBlur(inputImage, gray_image, Size(3,3), 0, 0, BORDER_DEFAULT);
+    cvtColor(gray_image, gray_image, CV_BGR2GRAY);
+    
+    // use Sobel to calculate the gradient of the image in the x and y direction
+    Sobel(gray_image, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT);
+    Sobel(gray_image, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT);
+    
+    // convert gradients to abosulte versions of themselves
+    convertScaleAbs(grad_x, grad_x);
+    convertScaleAbs(grad_y, grad_y);
+    
+    // total gradient (approx)
+    addWeighted( grad_x, 0.5, grad_y, 0.5, 0, BW_image );*/
+    
+    // convert the default values to double precision
+    BW_image.convertTo(BW_image, CV_64F, 1.0/255.0);
     imshow("gradient image", BW_image);
 }
 
 //3rd. find seams
-int* findOptimalPath(Mat& energyMap, int* optimalPath, char seam_direction){
-
+vector<int> findOptimalPath(Mat& energyMap, vector<int> optimalPath, char seam_direction){
+	double maximum = 2147483647.0;
+	int minIndex;
     if(seam_direction == 'v'){
         //min and max location point in Mat.
-        Mat table = energyMap.row(energyMap.rows - 1);
-        Point min_loc, max_loc;
-        minMaxLoc(table, &min, &max, &min_loc, &max_loc);
-        optimalPath[energyImage.rows - 1] = min_loc.x;
-
-        int rows = energyImage.rows - 2;
-        for(int from = rows; from > 0; from-- ){
-            //backtrack
-        }
+        //Mat table = energyMap.row(energyMap.rows - 1);
+	double min_value, max_value;
+	
+	for(int minColumn = 0; minColumn<energyMap.cols; minColumn++){
+		if(energyMap.at<double>(energyMap.rows-1, minColumn) < maximum){
+			maximum = energyMap.at<double>(energyMap.rows-1, minColumn);
+			minIndex = minColumn;		
+		}
+	}
+	int min_index;
+	min_index = minIndex;
+        optimalPath[energyMap.rows - 1] = min_index;
+	
+	int offset;
+	for(int rows = energyMap.rows-2; rows>=0; rows--){
+		
+	    
+	   double a = energyMap.at<double>(rows, max(min_index - 1, 0));
+           double b = energyMap.at<double>(rows, min_index);
+           double c = energyMap.at<double>(rows, min(min_index + 1, energyMap.cols - 1));
+            
+            if (min(a,b) > c) {
+                offset = 1;
+            }
+            else if (min(a,c) > b) {
+                offset = 0;
+            }
+            else if (min(b, c) > a) {
+                offset = -1;
+            }
+            
+            min_index += offset;
+            min_index = std::min(std::max(min_index, 0), energyMap.cols - 1); // take care of edge cases
+	    optimalPath[rows] = min_index;
+	   	
+	}
+       
     }
     else if(seam_direction == 'h'){
         Mat table = energyMap.col(energyMap.cols - 1);
-        Point min_loc, max_loc;
-        minMaxLoc(energyMap, &min, &max, &min_loc, &max_loc);
-        optimalPath[energyImage.cols - 1] = min_loc.y;
-
-        int cols = energyImage.cols - 2;
-        for(int from = cols; from > 0; from-- ){
-            //backtrack
-        }
+	double min_value, max_value;
+        cv::Point min_loc, max_loc;
+        cv::minMaxLoc(table, &min_value, &max_value, &min_loc, &max_loc);
+	int min_index = min_loc.y;
+        optimalPath[energyMap.cols - 1] = min_index;
+	
+       // int cols = energyMap.cols - 2;
+        int offset;
+	for(int cols = energyMap.cols - 2; cols >=0; cols--){
+		
+	    double a = energyMap.at<double>(std::max(min_index - 1, 0), cols);
+            double b = energyMap.at<double>(min_index, cols);
+            double c = energyMap.at<double>(std::min(min_index + 1, energyMap.rows - 1), cols);
+            
+            if (min(a,b) > c) {
+                offset = 1;
+            }
+            else if (min(a,c) > b) {
+                offset = 0;
+            }
+            else if (min(b, c) > a) {
+                offset = -1;
+            }
+            
+            min_index += offset;
+            min_index = std::min(std::max(min_index, 0), energyMap.rows - 1); // take care of edge cases
+	    optimalPath[cols] = min_index;
+	    
+	}
     }
    
    return optimalPath;
 }
 
 //2nd. cummulative energy/ dynamic programming
-int* calculateSeams(Mat& inputImage, Mat& imageIntense, char seam_direction){
+vector<int> calculateSeams(Mat& inputImage, Mat& imageIntense, char seam_direction){
     int imageRows = imageIntense.rows;
     int imageCols = imageIntense.cols;
-
-    Mat energyMap = Mat(inputImage.rows, inputImage.cols,CV_64F, double(0));
-    BW_image.copyTo(energyMap);
-    
+    vector<int> optimalPath;
+    Mat energyMap = Mat(imageRows, imageCols, CV_64F, double(0));
+ //  imageIntense.copyTo(energyMap);
+   
+ //  Mat energyMap;
+	
    if(seam_direction == 'h'){
-       int* optimalPath = new int[imageCols];
+	imageIntense.row(0).copyTo(energyMap.row(0));
+//cout<<"inside horizontal"<<endl;
+       optimalPath.resize(imageCols);
        for(int column = 1; column < imageCols; column++){
             for(int row = 0; row < imageRows; row++){
                 if(row == 0)
-                    energyMap.at<double>(row,column) += min(energyMap.at<double>(row, column-1), energyMap.at<double>(row+1, column-1));
-                else{
-                    energyMap.at<double>(row, column) += min(energyMap.at<double>(row-1, column-1), min(energyMap.at<double>(row, column-1), energyMap.at<double>(min(row+1, imageCols-1), column-1)));
+                    energyMap.at<double>(row,column) = imageIntense.at<double>(row, column) + min(energyMap.at<double>(row, column-1), energyMap.at<double>(row+1, column-1));
+                else if(row == imageRows -1){
+			energyMap.at<double>(row,column) = imageIntense.at<double>(row, column) + min(energyMap.at<double>(row, column-1),energyMap.at<double>(row-1, column-1));
+		}
+		else{
+                    energyMap.at<double>(row, column) = imageIntense.at<double>(row, column) + min(energyMap.at<double>(row-1, column-1), min(energyMap.at<double>(row, column-1), 				energyMap.at<double>(row+1, column-1)));
                 }       
             }
         }
 
-        optimalPath = findOptimalPath(energyMap, optimalPath, seam_direction);
+       optimalPath = findOptimalPath(energyMap, optimalPath, seam_direction);
     }
    else if(seam_direction == 'v'){
-       int* optimalPath = new int[imageRows];
+	imageIntense.col(0).copyTo(energyMap.col(0));  
+	//cout<<"inside VERtical"<<endl;
+       optimalPath.resize(imageRows);
 
        for(int row = 1; row < imageRows; row++){
             for(int column = 0; column < imageCols; column++){
-                if(column == 0)
-                    energyMap.at<double>(row,column) += min(energyMap.at<double>(row-1, column), energyMap.at<double>(row-1, column+1));
+                if(column == 0){
+                    energyMap.at<double>(row,column) =imageIntense.at<double>(row, column) + min(energyMap.at<double>(row-1, column), energyMap.at<double>(row-1, column+1));
+		}
+		else if(column == imageCols -1){
+			energyMap.at<double>(row, column) = imageIntense.at<double>(row, column) + min(energyMap.at<double>(row-1, column-1),energyMap.at<double>(row-1, column));
+		}
                 else{
-                    energyMap.at<double>(row, column) += min(energyMap.at<double>(row-1, column-1), min(energyMap.at<double>(row-1, column-1), energyMap.at<double>(row-1, min(column+1, imageRows-1)));
+                    energyMap.at<double>(row, column) = imageIntense.at<double>(row, column) + min(energyMap.at<double>(row-1, column-1), min(energyMap.at<double>(row-1, column), energyMap.at<double>(row-1,column+1)));
                 }       
             }
         }
 
-        optimalPath = findOptimalPath(energyMap, optimalPath, seam_direction);
+       optimalPath = findOptimalPath(energyMap, optimalPath, seam_direction);
    }
 	
 	return optimalPath;
@@ -161,20 +250,24 @@ bool reduce_horizontal_seam_trivial(Mat& in_image, Mat& out_image, Mat& BW_image
     
     // create an image slighly smaller
     out_image = Mat(rows, cols, CV_8UC3);
-    int* optimalPathArray;
-    optimalPathArray = calculateSeams(in_image,BW_image, 'h' );
+    vector<int> optimalPathArray;
+   optimalPathArray = calculateSeams(in_image,BW_image, 'h' );
+//cout<<"khkj"<<endl;
     //populate the image
-    int middle = in_image.rows / 2;
     
-   for(int i=0;j<cols;++i){
-        for(int j=0;j<=optimalPathArray[i];++j){
+    //optimalPathArray[i]
+   for(int i=0;i<cols;++i){
+        for(int j=0;j<optimalPathArray[i];++j){
+//		cout<<i<<endl;
             Vec3b pixel = in_image.at<Vec3b>(j, i);
-            out_image.at<Vec3b>(i,j) = pixel;
+            out_image.at<Vec3b>(j,i) = pixel;
         }
-
-        for(int j=optimalPathArray[i]+1;j<rows;++j){
+}
+ for(int i=0;i<cols;++i){
+        for(int j=optimalPathArray[i];j<rows;++j){
+//cout<<"ljkjkljkl"<<endl;
             Vec3b pixel = in_image.at<Vec3b>(j+1, i);
-            out_image.at<Vec3b>(i,j) = pixel;
+            out_image.at<Vec3b>(j,i) = pixel;
         }
         
     }
@@ -190,19 +283,20 @@ bool reduce_vertical_seam_trivial(Mat& in_image, Mat& out_image, Mat& BW_image){
     
     // create an image slighly smaller
     out_image = Mat(rows, cols, CV_8UC3);
-    int* optimalPathArray;
-    optimalPathArray = calculateSeams(in_image,BW_image, 'v' );
+    vector<int> optimalPathArray;
+   optimalPathArray = calculateSeams(in_image,BW_image, 'v' );
     //populate the image
-    int middle = in_image.cols / 2;
+    
     
     for(int i=0;i<rows;++i)
-        for(int j=0;j<=optimalPathArray[i];++j){
+        for(int j=0;j<optimalPathArray[i];++j){
+//cout<<"ver ---"<<endl;
             Vec3b pixel = in_image.at<Vec3b>(i, j);
             out_image.at<Vec3b>(i,j) = pixel;
         }
-    
+    //optimalPathArray[i]
     for(int i=0;i<rows;++i)
-        for(int j=optimalPathArray[i]+1;j<cols;++j){
+        for(int j=optimalPathArray[i];j<cols;++j){
             Vec3b pixel = in_image.at<Vec3b>(i, j+1);
             out_image.at<Vec3b>(i,j) = pixel;
         }

@@ -1,0 +1,2 @@
+# Image-Resizing-by-Seam-Carving
+Seam carving allows a change in size of the image by modifying the least noticeable pixels in an image. A typical application for seam carving is to reduce the size of an image along one dimension. This can be done by finding one pixel wide paths from the top to the bottom of the image and removing those paths. If the pixels in those paths are similar to surrounding pixels, then their removal may be unnoticed. Other seam carving applications include increasing the size of an image, changing the size of an image in two dimensions. 

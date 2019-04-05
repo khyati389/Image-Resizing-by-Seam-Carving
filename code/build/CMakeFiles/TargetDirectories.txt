@@ -1,0 +1,3 @@
+/home/m/m_rajap/Documents/Project2-Khyati/code/build/CMakeFiles/rebuild_cache.dir
+/home/m/m_rajap/Documents/Project2-Khyati/code/build/CMakeFiles/edit_cache.dir
+/home/m/m_rajap/Documents/Project2-Khyati/code/build/CMakeFiles/sc.dir

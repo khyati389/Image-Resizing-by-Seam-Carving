@@ -20,11 +20,7 @@ using namespace std;
 //1st. Energy map
 void energyImageGeneration(Mat& inputImage, Mat& BW_image){
     	Mat gray_image;
-	Mat grad_x, grad_y;
-	Mat abs_grad_x, abs_grad_y;
-	int scale = 1;
-	int delta = 0;
-	int ddepth = CV_16S;
+	
 
     //laplacian function
 	GaussianBlur(inputImage, gray_image, Size(3, 3), 0, 0, BORDER_DEFAULT);
@@ -32,29 +28,16 @@ void energyImageGeneration(Mat& inputImage, Mat& BW_image){
 	Laplacian(gray_image, BW_image, CV_16S, 3, 1, 0, BORDER_DEFAULT);
 	convertScaleAbs(BW_image, BW_image);
     // end of laplacian
-    /*GaussianBlur(inputImage, gray_image, Size(3,3), 0, 0, BORDER_DEFAULT);
-    cvtColor(gray_image, gray_image, CV_BGR2GRAY);
     
-    // use Sobel to calculate the gradient of the image in the x and y direction
-    Sobel(gray_image, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT);
-    Sobel(gray_image, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT);
-    
-    // convert gradients to abosulte versions of themselves
-    convertScaleAbs(grad_x, grad_x);
-    convertScaleAbs(grad_y, grad_y);
-    
-    // total gradient (approx)
-    addWeighted( grad_x, 0.5, grad_y, 0.5, 0, BW_image );*/
-    
-    // convert the default values to double precision
-    BW_image.convertTo(BW_image, CV_64F, 1.0/255.0);
+    double value = 1.0/255.0;
+    BW_image.convertTo(BW_image, CV_64F, value);
     imshow("gradient image", BW_image);
 }
 
 //3rd. find seams
 vector<int> findOptimalPath(Mat& energyMap, vector<int> optimalPath, char seam_direction){
 	double maximum = 2147483647.0;
-	int minIndex;
+	double minIndex;
     if(seam_direction == 'v'){
         //min and max location point in Mat.
         //Mat table = energyMap.row(energyMap.rows - 1);
@@ -136,7 +119,7 @@ vector<int> calculateSeams(Mat& inputImage, Mat& imageIntense, char seam_directi
     int imageRows = imageIntense.rows;
     int imageCols = imageIntense.cols;
     vector<int> optimalPath;
-    Mat energyMap = Mat(imageRows, imageCols, CV_64F, double(0));
+    Mat energyMap = Mat::zeros(imageRows, imageCols, CV_64F);
  //  imageIntense.copyTo(energyMap);
    
  //  Mat energyMap;
